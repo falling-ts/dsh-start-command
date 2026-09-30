@@ -32,6 +32,7 @@
  */
 
 import { readStartCommand } from '../core/settings.js'
+import { appendOutcome } from '../core/outcome-log.js'
 import { describeOutcome, runStartCommand } from '../core/runner.js'
 
 /** Sessions whose turn latch is remembered; bounds process memory. */
@@ -129,10 +130,33 @@ export function qualifies(ctx, payload) {
 }
 
 /**
+ * Compose the on-disk record for one decision: the stable marker, what the
+ * plugin decided, and which turn it decided about. Kept in one place so the log
+ * lines stay greppable (`[start-command]` first, `session=`/`turn=`/`step=`
+ * always present) and so no caller can forget a field.
+ * @param {{ kind: string, sessionId?: string|undefined, turn?: number|undefined,
+ *   step?: number|undefined, detail?: string|undefined }} fields
+ * @returns {string} one log line
+ */
+function recordLine({ kind, sessionId, turn, step, detail }) {
+  const parts = ['[start-command]', kind]
+  if (typeof sessionId === 'string') parts.push(`session=${sessionId}`)
+  if (typeof turn === 'number') parts.push(`turn=${turn}`)
+  if (typeof step === 'number') parts.push(`step=${step}`)
+  if (typeof detail === 'string' && detail !== '') parts.push(detail)
+  return parts.join(' ')
+}
+
+/**
  * Decide and, when every gate holds, run the configured start command.
  *
  * Never throws: the caller is an `agent/pre-step` waterfall listener, and a
  * start command must be unable to corrupt a model request.
+ *
+ * Every decision taken with a command configured is also written to the outcome
+ * log (`$DSH_HOME/logs/dsh-start-command.log`): a refusal is exactly as
+ * interesting as a failure, because from the outside both look like "nothing
+ * happened". An unconfigured command stays completely silent.
  *
  * @param {object} ctx host plugin context
  * @param {object} payload the `agent/pre-step` payload (`{ agent, messages, turn, step, signal }`)
@@ -145,14 +169,19 @@ export async function maybeRunStartCommand(ctx, payload) {
   const agent = payload === null || payload === undefined ? undefined : payload.agent
   const session = agent === null || agent === undefined ? undefined : agent.session
   const sessionId = session === null || session === undefined ? undefined : session.id
+  const step = payload === null || payload === undefined ? undefined : payload.step
 
   const command = readStartCommand()
   if (command === undefined) return { ran: false, reason: 'no-command' }
 
   const gate = qualifies(ctx, payload)
-  if (!gate.ok) return { ran: false, reason: gate.reason }
+  if (!gate.ok) {
+    appendOutcome(recordLine({ kind: 'refused', sessionId, turn: payload.turn, step, detail: `reason=${gate.reason}` }))
+    return { ran: false, reason: gate.reason }
+  }
 
   if (typeof sessionId === 'string' && alreadyServed(sessionId, payload.turn)) {
+    appendOutcome(recordLine({ kind: 'skipped', sessionId, turn: payload.turn, step, detail: 'reason=already-served' }))
     return { ran: false, reason: 'already-served' }
   }
   if (typeof sessionId === 'string') markServed(sessionId, payload.turn)
@@ -172,6 +201,13 @@ export async function maybeRunStartCommand(ctx, payload) {
     if (line.level === 'warn') ctx.logger.warn(line.text)
     else ctx.logger.info(line.text)
   } catch { /* a logging failure must not fail the step */ }
+  appendOutcome(recordLine({
+    kind: outcome.ran === true ? 'ran' : 'failed',
+    sessionId,
+    turn: payload.turn,
+    step,
+    detail: line.text.startsWith('[start-command] ') ? line.text.slice('[start-command] '.length) : line.text,
+  }))
   return {
     ...outcome,
     command,
