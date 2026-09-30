@@ -69,6 +69,60 @@
 写标记类文件请用 `Add-Content -Encoding ascii`；读回这类文件要按 BOM 判定解码
 （`exploration/sc-e2e-probe.mjs` 两处都做了）。
 
+## 落盘运行日志（`src/core/outcome-log.js`）
+
+`ctx.logger` 在两个部署里都不落盘（见下文"验证"一节），于是"插件这次到底决定了什么"在线上
+**无从查证**——用户最自然的追问（"我发了一条消息，命令执行了吗"）只能靠猜。本文件就是这条
+追问的答案：**每一次决策都写一行到磁盘**。
+
+- 位置：`$DSH_HOME/logs/dsh-start-command.log`；`DSH_START_COMMAND_LOG` 可改写到任意路径，
+  **设为空串即整体关闭**；`$DSH_HOME` 不可用时回落到 `~/.dsh/logs/…`。
+- 行格式：`<ISO 时刻> [start-command] <kind> session=<id> turn=<n> step=<m> <细节>`，`kind` 四态：
+  - `ran` / `failed` —— 命令真执行了，带上 `describeOutcome()` 的结论、`exit=`、耗时与截断的
+    `stdout=`/`stderr=`。`failed` 覆盖非零退出、超时、中止、执行器缺席、执行器抛异常。
+  - `refused` —— 某道门（1–6）挡下，`reason=<稳定 token>`（如 `not-first-step`）。
+  - `skipped` —— 回合闩锁命中，`reason=already-served`。
+  - 门 0（没配命令）**不写任何行**：空配置是"未启用"，不是一次决策，写进去只会污染日志。
+- **写日志绝不抛、绝不阻塞、绝不无界增长**：单文件上限 `MAX_BYTES = 512 KiB`，超限时保留最后
+  `KEEP_LINES = 200` 行重写一次；目录不存在就建；任何失败（路径非法、权限不足、盘只读）
+  都被吞掉——**日志坏了不能把开始前命令弄坏**。
+- 它写的是**决策**，不是命令输出进模型：命令的 stdout/stderr 照旧**绝不**进模型请求
+  （见"插件定位"），日志只落盘给人看。
+- 判据（离线已覆盖，见"验证"）：`ran` 行带正确的 session/turn/exit、ISO 时刻可解析；门禁拒绝
+  有 `refused` 行；空命令**没有**任何行；执行器缺席写 `failed … did not run (no-shell)`；
+  `DSH_START_COMMAND_LOG=''` 时一行不写；路径不可写（如 `Z:\nope\x.log`）时 `ran:true` 照旧
+  ——即"日志失败不影响功能"。
+- **落点跟着宿主的 `DSH_HOME`，不跟 profile 名**：3080 那个 web 实例若从桌面应用的 shell 派生
+  环境启动，会继承机器级的 `DSH_HOME=~/.dsh`，日志就写进**桌面 home** 的 `logs/`。查日志前先
+  确认实例的 home（`harness-server.sh` 第一行 `[web] DSH_HOME = …`），否则会在
+  `~/.dsh-web/logs/` 里空等一个永远不出现的文件。
+
+## 沙箱：插件派发的命令跑在会话自己的围栏里
+
+`ctx.shell` 按会话解析沙箱策略（见上文"执行路径"），所以"命令里再起别的进程"要按会话的
+策略分档看。2026-09-30 实测（3080 真实回合，`permission.defaultPreset` 两值对照）：
+
+| 会话策略 | 命令本身 | 命令内 `spawn` 子进程 | 写 `%TEMP%` | 结论 |
+|----------|----------|----------------------|-------------|------|
+| `danger-full-access` | `exit=0` | 可以 | 可以 | 全链路可用 |
+| `workspace-write` | `exit=0`（日志里看得到 `ran`） | **`EPERM`** | 落到一次性目录 `%TEMP%\dsh-XXXXXX\` | 命令"成功"但副作用看不见 |
+
+两条由此而来的硬结论，写"开始前命令"时务必守住：
+
+1. **`ran … exit=0` 不等于"副作用发生了"。** 在 `workspace-write` 会话里，命令能被启动、
+   退出码为 0，但它在内部 `spawn` 一个孙进程会拿到 `EPERM`（本机实测：
+   `spawnSync C:\Program Files\nodejs\node.exe EPERM`），而失败只体现在命令自己的 stdout/stderr
+   里。要判断"这次到底生效没有"，看日志的 `failed`/`stderr=` 字段，或者让命令自己写一个落地
+   信号文件——**别只看退出码**。
+2. **宿主会给每条命令一个一次性的临时目录**（实测 `%TEMP%\dsh-XXXXXX\`，每条命令一个、用完
+   即回收），所以任何"靠 `%TEMP%` 里的计数器做跨次编号"的做法在该策略下都会从 1 重新开始，
+   且那个目录可能在动作进程还在用时就被收走。跨次稳定的落点应当是 `$DSH_HOME/logs/` 这类
+   不会被回收的位置。
+3. **`Start-Process` 会继承当前工作目录，而会话工作目录可能不可访问。** 同一天另一次实测：
+   同一条命令、同一个受约束的工作目录，`Start-Process -WorkingDirectory <会话目录>` 起不来
+   （`status=null`、PID 为空、屏幕上什么都没有），同一目录下直接 `execFile` 却正常。派发进程时
+   显式把工作目录钉在一个总是可写的位置（如 `%TEMP%`），把会话目录只当**显示文本**用。
+
 ## 设置面
 
 - `src/core/settings.js`：`NS = 'falling-ts-start-command'`、`COMMAND_FIELD = 'startCommand'`、
@@ -124,13 +178,15 @@ peer 下界一律 `>=0.2.0-rc.1`（0.2.0 列车；**不收窄到 rc.2**——收
 
 离线（可重复、不连实例）：
 
-- `node exploration/sc-prestep-probe.mjs` —— **63 项**：命名空间三处一致、六组结构门禁（含
+- `node exploration/sc-prestep-probe.mjs` —— **75 项**：命名空间三处一致、六组结构门禁（含
   `messages` 缺失不抛异常、注册表抛异常时 fail-open）、空值零副作用（不碰 shell、不写日志）、
   执行路径（命令原文、`workdir` 取会话 cwd、signal 透传、沙箱策略按会话解析并透传、非零退出/
   超时/中止/执行器缺席/执行器抛异常各自的收敛与日志级别）、回合闩锁（同回合拦重入、下一回合重跑、
   门禁拒绝不消耗闩锁、256 上限淘汰最旧）、waterfall 语义（下游决定原样返回、下游 reject 时绝不
   执行、命令抛异常不污染返回值、`next()` 恰好一次、apply 只注册一个监听器、设置表单走
-  `ctx.inject`）。
+  `ctx.inject`），以及**落盘运行日志**一组（`ran` 行的 kind/session/turn/exit 与 ISO 时刻、
+  门禁拒绝的 `refused` 行、空命令一行都不写、执行器缺席写 `failed … did not run (no-shell)`、
+  显式关掉 sink 后不写、路径不可写时命令照旧 `ran:true`）。
 - 三个共用门禁已把本插件纳入：`plugin-manifest-check.mjs`（严格 JSON + peer 纯下界 + locale/icon/
   exports/files 覆盖，4 个 manifest）、`i18n-parity-probe.mjs`（74 项，四词典对齐 + 词典外零硬编码
   CJK）、`theme-token-probe.mjs`（46 项，三插件 token 表逐字相同 + 暗色对比度 + 浅色未漂移）。
