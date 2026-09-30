@@ -1,0 +1,15 @@
+# Opt-in layer: mount the dsh-start-command function plugin over the current
+# composition without changing shipped defaults.
+#
+#   dsh plugin --profile web add github:falling-ts/dsh-start-command   # install
+#   dsh web --patch dsh-start-command/cordis.patch.yml                 # dev overlay
+#
+# The Host half awaits one configured command on `agent/pre-step` — the
+# extension point the official Claude Code bridge maps UserPromptSubmit onto —
+# but only for the first step of a turn whose claimed messages came from the
+# user, and only while no other agent is running. The browser client half adds
+# the "Start command" section to Settings.
+
+- insert:
+    - id: falling-ts-start-command
+      name: '@falling-ts/dsh-start-command'

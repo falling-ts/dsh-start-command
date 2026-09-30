@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Start command",
+    "description": "Runs one configured shell command before the model request, but only when you send a prompt while no agent is running."
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "name": "@falling-ts/dsh-start-command",
+  "version": "0.1.0",
+  "description": "DSH Cordis plugin: runs one configured shell command in the session's working directory before the first model request of a turn, but only when the user submits a prompt while no other agent is running. The Host half awaits the command through the mounted shell executor (sandbox policy and cancellation included); the browser client half adds a \"Start command\" settings section with a single text input, and an empty value skips execution entirely.",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./web/client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "src/",
+    "web/",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg"
+  ],
+  "icon": "./icon.svg",
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.4",
+    "@deepseek-ai/dsh-agent": ">=0.2.0-rc.1",
+    "@deepseek-ai/dsh-client-locale": ">=0.2.0-rc.1",
+    "@deepseek-ai/dsh-client-store": ">=0.2.0-rc.1",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.2.0-rc.1",
+    "@deepseek-ai/dsh-sandbox-policy": ">=0.2.0-rc.1",
+    "@deepseek-ai/dsh-settings": ">=0.2.0-rc.1",
+    "@deepseek-ai/dsh-shell": ">=0.2.0-rc.1",
+    "@deepseek-ai/schemastery": ">=3.18.4"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-agent": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-locale": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-store": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-settings": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-sandbox-policy": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-settings": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-shell": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-store"
+      ]
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/falling-ts/dsh-start-command.git"
+  },
+  "keywords": [
+    "dsh",
+    "cordis",
+    "agent",
+    "start-command",
+    "pre-step",
+    "shell",
+    "settings",
+    "client"
+  ]
+}
