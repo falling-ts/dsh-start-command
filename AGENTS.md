@@ -151,15 +151,34 @@ peer 下界一律 `>=0.2.0-rc.1`（0.2.0 列车；**不收窄到 rc.2**——收
 - `pluginInventory/list`：`@falling-ts/dsh-start-command` `enabled:true` / `fiberPhase:active`，
   显示元数据（en `Start command` / zh `开始前命令` + `icon`）正常解析；
   `settings/describe` 出现 `falling-ts-start-command`，`autoGenerate:false`、`applies:"live"`。
-- 已知观测：插件的 `ctx.logger` 输出**不**落在根目录的 `dsh-web-3080.log`（该实例的 stdout 由
-  启动它的 supervisor 持有），所以探针把"宿主日志里有没有 `[start-command]` 行"当作**尽力而为**
-  的附加证据，判据始终是标记文件与会话记录。怀疑启动失败时改抓 home 下的
-  `logs/startup-*.log`。
+- 已知观测（2026-09-30 查明机制）：插件的 `ctx.logger` 输出**在这两个部署里都不落盘**——
+  两个 profile 的 `cordis.yml` 都没有 `logger` 条目，即没挂
+  `@deepseek-ai/cordis-plugin-logger-console`（console exporter），而 cordis 的 logger
+  没有 exporter 就等于丢弃。于是 `dsh-web-3080.log` 里只有**直接 `console.log`** 的行：
+  判据是 `[dsh-local-no-auth] active`（`console.log`）、`[force-compact] BUILTIN ENGINE
+  LOADED`（`console.log`）都在，而 force-compact 启动时必然执行的
+  `ctx.logger.info('[force-compact] apply START/END')` 一行都没有。唯一会落盘的 logger 记录是
+  app-boot 的**启动失败**转储 `$DSH_HOME/logs/startup-*.log`（只收 warn/error、只在启动失败时写；
+  force-compact 那份 `dsh-force-compact.log` 是它**自己**装了 `ctx.logger.exporter`）。
+  所以"日志里查不到 `[start-command] … exit=…`"是部署性质、不是插件缺陷：判据始终是标记文件
+  与会话记录；真要留证据，就让命令自己写日志——
+  `node <仓库>/test-start.js --wait *>&1 | Out-File -LiteralPath <file> -Encoding ascii`
+  （别用 `>` / `>>`，pwsh 会写成 UTF-16LE+BOM，宿主 `read` 判其为 binary 而拒读）。
 - `node exploration/sc-live-verify.mjs 3080` —— **门 5 的两支活体表现**：① 先轮询**等到
   `session/list` 里没有任何 `running:true`**，再发真实回合，断言命令执行（正例）；② 会话 A 的
   回合还在 running 时投递会话 B，断言 B **不执行**命令、但 B 的回合照常跑完（反例，证明压制
-  不是卡住）；`--toast` 追加第三段，用工作区根的 `test-start.js` 验一次真实命令（默认关闭：
-  那个文件属于容器仓库、不属于本插件）。退出码 **2 = 拿不到干净窗口**（环境不满足，不是缺陷）。
+  不是卡住）；`--demo`（旧名 `--toast` 仍接受）追加第三段，用工作区根的 `test-start.js`
+  （`--text=sc-live-verify --no-launch`，headless）验一次真实命令，并断言标记里的 `text=`
+  正是本次写进命令的那一个（默认关闭：那个文件属于容器仓库、不属于本插件）。
+  退出码 **2 = 拿不到干净窗口**（环境不满足，不是缺陷）。
+- 工作区根的 `test-start.js`（不属于本插件）是这套链路的**可视 demo**：默认动作已是
+  **打开系统记事本并写入 `Harness 开始了。`**（`--text=` / `--file=` / `--new` / `--no-launch`
+  可调；`--notify` / `--toast` / `--card` 回到右下角通知）。它把正文用 UTF-8 直写
+  `%TEMP%\harness-started.txt`（**中文不经过命令行**:PowerShell 只拿一条纯 ASCII 路径去开记事本）、
+  把 `kind=notepad reused=… found=… focused=…` 打到 stdout，并覆盖写
+  `%TEMP%\dsh-start-command-last-run.txt` 标记。已有一个开着同一份文档的窗口时**只聚焦不叠窗口**
+  （实测:宿主是提权后台进程,普通的 `SetForegroundWindow` 会被前台锁挡掉，
+  `AttachThreadInput`→松一次 Alt 键→`SwitchToThisWindow` 三级连锁才拿到 `focused=True`）。
 
 > **测这条链时最容易踩的坑：探针发起者自己就是那个"在跑的 agent"。** 2026-09-30 实测：本会话
 > 就跑在 3080 这台 host 上（`session/list` 里一直是 `running:true`），于是我**在自己的回合里**
