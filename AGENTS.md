@@ -164,6 +164,11 @@ peer 下界一律 `>=0.2.0-rc.1`（0.2.0 列车；**不收窄到 rc.2**——收
   与会话记录；真要留证据，就让命令自己写日志——
   `node <仓库>/test-start.js --wait *>&1 | Out-File -LiteralPath <file> -Encoding ascii`
   （别用 `>` / `>>`，pwsh 会写成 UTF-16LE+BOM，宿主 `read` 判其为 binary 而拒读）。
+  **补充（同日查明）**：`~/.dsh/logs/dsh-force-compact.log` **不能**当"别的插件有没有加载"的
+  证据——那个 exporter 在出口处按 `[force-compact]` 标记过滤（`src/core/log.js` 的
+  `shouldInclude`），别的命名空间的行根本不写。另一个推论：**中途装上的插件无法用"当回合"
+  验证**，门 1 是 `payload.step === 1`（每回合只在第一个模型步骤执行），本回合的 step 1 早已
+  过去——判据必须是**新回合**。
 - `node exploration/sc-live-verify.mjs 3080` —— **门 5 的两支活体表现**：① 先轮询**等到
   `session/list` 里没有任何 `running:true`**，再发真实回合，断言命令执行（正例）；② 会话 A 的
   回合还在 running 时投递会话 B，断言 B **不执行**命令、但 B 的回合照常跑完（反例，证明压制
@@ -171,14 +176,23 @@ peer 下界一律 `>=0.2.0-rc.1`（0.2.0 列车；**不收窄到 rc.2**——收
   （`--text=sc-live-verify --no-launch`，headless）验一次真实命令，并断言标记里的 `text=`
   正是本次写进命令的那一个（默认关闭：那个文件属于容器仓库、不属于本插件）。
   退出码 **2 = 拿不到干净窗口**（环境不满足，不是缺陷）。
-- 工作区根的 `test-start.js`（不属于本插件）是这套链路的**可视 demo**：默认动作已是
-  **打开系统记事本并写入 `Harness 开始了。`**（`--text=` / `--file=` / `--new` / `--no-launch`
-  可调；`--notify` / `--toast` / `--card` 回到右下角通知）。它把正文用 UTF-8 直写
-  `%TEMP%\harness-started.txt`（**中文不经过命令行**:PowerShell 只拿一条纯 ASCII 路径去开记事本）、
-  把 `kind=notepad reused=… found=… focused=…` 打到 stdout，并覆盖写
-  `%TEMP%\dsh-start-command-last-run.txt` 标记。已有一个开着同一份文档的窗口时**只聚焦不叠窗口**
-  （实测:宿主是提权后台进程,普通的 `SetForegroundWindow` 会被前台锁挡掉，
-  `AttachThreadInput`→松一次 Alt 键→`SwitchToThisWindow` 三级连锁才拿到 `focused=True`）。
+- 工作区根的 `test-start.js`（不属于本插件）是这套链路的**可视 demo**：默认动作是
+  **在屏幕右下角新弹一个自绘窗口**（`popup` 模式，写着 `Harness 开始了。` + `第 N 次执行 · 时刻`
+  + 会话工作目录），**每次执行都新开一个窗口**（叠着往上排），不合并、不替换、不受系统通知策略
+  影响，默认 9 秒淡出、点一下立即关（`--sticky` 不自动关、`--duration=` / `--silent` / `--focus` /
+  `--text=` / `--no-launch` 可调；`--notepad` / `--notify` / `--toast` / `--card` 是旧行为）。
+  枚举窗口用 `node exploration/win-window-probe.mjs [标题子串] [--all]`。
+  **它在这条链上验证出的一条硬结论（2026-09-30，对任何"必须活过这条命令"的动作都成立）**：
+  宿主那条命令是以自己的 shell 执行的，命令一退出它的进程树就跟着走，所以
+  - `spawn(…, { detached: true })` 在本机是**假成功**：实测四种起法各写一个"12 秒后我还活着"
+    的文件，detached 那个**连启动都没启动**（`started=False`），普通子进程也活不过 12 秒；
+  - 真正活下来的是 **`Start-Process` 的孙进程**与 **WMI `Win32_Process.Create` 建的进程**。
+  `test-start.js` 因此按 ① `Start-Process`（`-WindowStyle Hidden`，不影响 WinForms 窗口显示）→
+  ② WMI → ③ 直接 spawn 的顺序派发，每档以"动作进程有没有刷新
+  `%TEMP%\dsh-start-command-child.txt`"为准，stdout 打 `dispatched via=start-process confirmed=Y`。
+  写这类命令时的教益：**别相信"我发出去了"，要有一个动作进程自己写的落地信号**。
+- **装到一半的插件无法用"当回合"验证**（同日实测的推论）：门 1 是 `payload.step === 1`，插件若在
+  本回合中途才装上，这一回合永远不会再触发——**用户的下一条消息**才是判据。
 
 > **测这条链时最容易踩的坑：探针发起者自己就是那个"在跑的 agent"。** 2026-09-30 实测：本会话
 > 就跑在 3080 这台 host 上（`session/list` 里一直是 `running:true`），于是我**在自己的回合里**
