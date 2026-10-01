@@ -1,6 +1,6 @@
 {
   "name": "@falling-ts/dsh-start-command",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DSH Cordis plugin: runs one configured shell command in the session's working directory before the first model request of a turn, but only when the user submits a prompt while no other agent is running. The Host half awaits the command through the mounted shell executor (sandbox policy and cancellation included); the browser client half adds a \"Start command\" settings section with a single text input, and an empty value skips execution entirely.",
   "type": "module",
   "main": "./index.js",
