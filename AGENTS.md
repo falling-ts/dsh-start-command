@@ -161,6 +161,28 @@
   组件只引用 `var(--fcts-*)`；暗色分支改指上游 `--dsw-alias-*` 语义别名。
 - **零 RPC**：客户端不手拼 wire 信封、不自铸 rpcId、不读宿主 DOM 做定位。
 
+## harness 0.2.1-rc.2 适配核对（2026-10-19）：零改动
+
+peer 下界升至 **`>=0.2.1-rc.1`**（0.2.1 列车），cordis `>=4.0.5`、schemastery `>=3.18.5`。
+换车理由同其它插件：`peer-range-probe.mjs` 要求声明的列车下界与 checkout 同列车。
+
+逐缝核对（**全部仍在**，源码无需改动）：
+
+- `agent/pre-step` 的载荷字段（`{agent, messages, turn, step, signal}`）与
+  `PreStepDecision` 判别式（`{kind:'reject'} | {kind:'enter', messages, startsRequestSeries?}`）
+  未变；
+- `ctx.agents.list(): Agent[]`（服务键 `agents`）与 `AgentStatus = 'idle' | 'running'` 未变；
+- `ctx.shell.resolve` / `ctx.shell.execute` / `execution.result()` 未变；
+  `ctx.sandboxPolicy.resolve()` 仍在；
+- `settings.configure({ auto }, owner)`、ConfigForm 五方法、`ctx.locale.bind/register/addLanguage`、
+  `ctx.slots.inject('settings.section')`、`createSnapshotStore` 均未变；
+- `session.header.origin === 'subagent'` 与 `session.header.cwd` 未变。
+
+端到端复核（3099 实例，`DSH_HOME=~/.dsh-web`，0.2.1-rc.2）：
+`node exploration/sc-prestep-probe.mjs` **75 项全绿**（离线）；
+`pluginInventory/list` 中 `include:falling-ts-start-command` 为 `enabled:true` /
+`fiberPhase:active`；`settings/describe` 出现 `falling-ts-start-command`（`applies: live`）。
+
 ## harness 0.2.0-rc.2 适配核对（2026-09-30）
 
 peer 下界一律 `>=0.2.0-rc.1`（0.2.0 列车；**不收窄到 rc.2**——收窄只会让 0.2.0 的 boot 期 peer

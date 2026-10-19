@@ -44,8 +44,8 @@ what they mean for that session.
 dsh plugin --profile web add github:falling-ts/dsh-start-command
 ```
 
-Requires harness `>=0.2.0-rc.1` (peer range: `@deepseek-ai/cordis >=4.0.4`,
-`@deepseek-ai/schemastery >=3.18.4`, `@deepseek-ai/dsh-* >=0.2.0-rc.1`).
+Requires harness `>=0.2.1-rc.1` (peer range: `@deepseek-ai/cordis >=4.0.5`,
+`@deepseek-ai/schemastery >=3.18.5`, `@deepseek-ai/dsh-* >=0.2.1-rc.1`).
 The `dsh.bundle.patch` declaration in `package.json` activates the patch layer;
 `dsh.client` ships the browser half.
 

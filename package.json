@@ -1,6 +1,6 @@
 {
   "name": "@falling-ts/dsh-start-command",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "DSH Cordis plugin: runs one configured shell command in the session's working directory before the first model request of a turn, but only when the user submits a prompt while no other agent is running. The Host half awaits the command through the mounted shell executor (sandbox policy and cancellation included); the browser client half adds a \"Start command\" settings section with a single text input, and an empty value skips execution entirely.",
   "type": "module",
   "main": "./index.js",
@@ -21,15 +21,15 @@
   "icon": "./icon.svg",
   "license": "MIT",
   "peerDependencies": {
-    "@deepseek-ai/cordis": ">=4.0.4",
-    "@deepseek-ai/dsh-agent": ">=0.2.0-rc.1",
-    "@deepseek-ai/dsh-client-locale": ">=0.2.0-rc.1",
-    "@deepseek-ai/dsh-client-store": ">=0.2.0-rc.1",
-    "@deepseek-ai/dsh-client-ui-settings": ">=0.2.0-rc.1",
-    "@deepseek-ai/dsh-sandbox-policy": ">=0.2.0-rc.1",
-    "@deepseek-ai/dsh-settings": ">=0.2.0-rc.1",
-    "@deepseek-ai/dsh-shell": ">=0.2.0-rc.1",
-    "@deepseek-ai/schemastery": ">=3.18.4"
+    "@deepseek-ai/cordis": ">=4.0.5",
+    "@deepseek-ai/dsh-agent": ">=0.2.1-rc.1",
+    "@deepseek-ai/dsh-client-locale": ">=0.2.1-rc.1",
+    "@deepseek-ai/dsh-client-store": ">=0.2.1-rc.1",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.2.1-rc.1",
+    "@deepseek-ai/dsh-sandbox-policy": ">=0.2.1-rc.1",
+    "@deepseek-ai/dsh-settings": ">=0.2.1-rc.1",
+    "@deepseek-ai/dsh-shell": ">=0.2.1-rc.1",
+    "@deepseek-ai/schemastery": ">=3.18.5"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-agent": {
