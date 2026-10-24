@@ -161,6 +161,35 @@
   组件只引用 `var(--fcts-*)`；暗色分支改指上游 `--dsw-alias-*` 语义别名。
 - **零 RPC**：客户端不手拼 wire 信封、不自铸 rpcId、不读宿主 DOM 做定位。
 
+## harness 0.2.1-rc.3 适配核对（2026-10-24）：零改动
+
+上游 `687f282e86`（rc.2）→ `22ddee3792`（master HEAD，`dsh-v0.2.1-rc.3-1533-g22ddee3792`），
+**1539 个提交**；列车仍是 **0.2.1**（rc.2 → rc.3），cordis `4.0.5` / schemastery `3.18.5`
+未变 → peer 下界 **`>=0.2.1-rc.1` 不动**。
+
+逐缝核对（**全部仍在**，源码无需改动）：
+
+- `agent/pre-step`：载荷**新增 `modelSelection`**（纯增量，本插件只读
+  `agent` / `messages` / `turn` / `step` / `signal` 与五道门用到的字段，不受影响）；
+  `PreStepDecision` 判别式逐字未变；
+- `ctx.agents.list()` / `AgentStatus = 'idle' | 'running'`（门 5 的判据）未变；
+- `ctx.shell.resolve` / `execute` / `execution.result()`、`ctx.sandboxPolicy.resolve()` 未变
+  （`shell` 包本轮只改了版本号）；
+- 客户端 `ConfigForm` 五方法、`ctx.locale`、`settings.section` 槽、`createSnapshotStore` 未变；
+- `session.header.origin === 'subagent'` 与 `session.header.cwd` 未变。
+
+**探针随动（唯一需要改的东西）**：0.2.1-rc.3 把设置入口从侧栏底部的独立「设置」节点搬进
+账号菜单，`sc-settings-ui-probe.mjs` 原来靠点击裸「设置」文本进入，新版会停在首页而全红。
+现改为先按 `Control+Alt+,`（账号菜单广告的快捷键）打开，未打开时走「账号菜单 → 设置」兜底。
+
+端到端复核（3099 隔离实例，`DSH_HOME=~/.dsh-web`，0.2.1-rc.3）：
+`node exploration/sc-prestep-probe.mjs` **75 项全绿**（离线）；
+`node exploration/sc-settings-ui-probe.mjs 3099` **7 项全绿**——真浏览器里点开「开始前命令」、
+文本框与「保存」按钮就位、输入框初值等于宿主当前值、界面改值经 `scope.set` 写回宿主、
+改回原值同样生效、页面零未捕获异常；
+`pluginInventory/list` 中 `include:falling-ts-start-command` 为 `enabled:true` /
+`fiberPhase:active`；`settings/describe` 出现 `falling-ts-start-command`（`applies: live`）。
+
 ## harness 0.2.1-rc.2 适配核对（2026-10-19）：零改动
 
 peer 下界升至 **`>=0.2.1-rc.1`**（0.2.1 列车），cordis `>=4.0.5`、schemastery `>=3.18.5`。
