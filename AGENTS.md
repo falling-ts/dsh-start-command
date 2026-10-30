@@ -161,6 +161,35 @@
   组件只引用 `var(--fcts-*)`；暗色分支改指上游 `--dsw-alias-*` 语义别名。
 - **零 RPC**：客户端不手拼 wire 信封、不自铸 rpcId、不读宿主 DOM 做定位。
 
+## harness 0.2.1-rc.5 适配核对（2026-10-30）：零改动
+
+基线切到 **`dsh-v0.2.1-rc.5`**（`b830ec950f`，页面版本串 `0.2.1-rc.5-b830ec9`）——`next`
+dist-tag 所指版本，是**从 rc.3 tag 拉出的 release 分支**（只多 13 个修复提交），
+不含 master 上 rc.3 之后的 1500+ 提交（那条线已到 `0.2.2-alpha.2`）。
+
+**本插件在 rc.5 上比在 master 上更安全**：上一节记录的两处 0.2.2 方向变更——
+`agent/pre-step` 载荷新增 `modelSelection`、`agent/request` 标 `@deprecated`——
+**在 rc.5 上都不存在**。`agent/pre-step` 载荷仍是
+`{ agent, messages, turn, step, signal }`（`core/agent/src/runtime-types.ts:320`），
+`agent/request` 全文搜不到 `@deprecated`。
+
+逐缝核对（**全部仍在**，源码无需改动）：
+
+- `agent/pre-step` 载荷字段与 `PreStepDecision` 判别式（`{kind:'reject'} |
+  {kind:'enter', messages, startsRequestSeries?}`）逐字未变；
+- `ctx.agents.list()` 与 `AgentStatus = 'idle' | 'running'`（门 5 的判据）未变；
+- `ctx.shell.resolve` / `execute` / `execution.result()`、`ctx.sandboxPolicy.resolve()` 未变；
+- 客户端 `ConfigForm` 五方法、`ctx.locale`、`settings.section` 槽、`createSnapshotStore` 未变；
+- `session.header.origin === 'subagent'` 与 `session.header.cwd` 未变。
+
+端到端复核（3099 隔离实例，`DSH_HOME=~/.dsh-web`，0.2.1-rc.5）：
+`node exploration/sc-prestep-probe.mjs` **75 项全绿**（离线）；
+`node exploration/sc-settings-ui-probe.mjs 3099` **7 项全绿**（真浏览器：点开「开始前命令」、
+文本框与「保存」按钮就位、输入框初值等于宿主当前值、界面改值经 `scope.set` 写回宿主、
+改回原值同样生效、页面零未捕获异常）；
+`node exploration/fc-settings-nav-icon-live-probe.mjs 3099` **28 项全绿**——本插件的
+`data-sc-nav-icon` 认领与 mask 绘制都在。
+
 ## harness 0.2.1-rc.3 适配核对（2026-10-24）：零改动
 
 上游 `687f282e86`（rc.2）→ `22ddee3792`（master HEAD，`dsh-v0.2.1-rc.3-1533-g22ddee3792`），
